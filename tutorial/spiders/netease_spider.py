@@ -45,10 +45,12 @@ class NeteaseSpider(scrapy.Spider):
      response - the response object pertaining to the search results page
     '''
     def GetMiddleStr(self,content,startStr,endStr):
-        startIndex = content.index(startStr)
+        startIndex = content.find(startStr)
         if startIndex >= 0:
             startIndex += len(startStr)
-        endIndex = content.index(endStr)
+        endIndex = content.find(endStr)
+        if endIndex < 0:
+            endIndex = len(content)
         return content[startIndex: endIndex]
     def parse(self, response):
 
@@ -73,7 +75,7 @@ class NeteaseSpider(scrapy.Spider):
             count = 0
             for items in hjson:
                 count +=1
-                #if count>10: break
+                if count>20: break
                 if count<9: continue
                 #print items
                 for (k, v) in items.items():
@@ -117,50 +119,73 @@ class NeteaseSpider(scrapy.Spider):
             article['agency'] = agency[0]
             article['aid'] = aid
             article['contents'] = ''.join(content)
-            yield article
             
+            yield response.meta['article']
+            
+            #star comment parsing
+            category = article['category']
             comment_url = 'http://comment.news.163.com/cache/newlist/'
-            if article['category'] == 0:
+            if category == 0:
                 comment_url += 'news_guonei8_bbs/'
-            elif article['category'] == 1:
+            elif category == 1:
                 comment_url += 'news3_bbs/'
-            elif article['category'] == 2:
+            elif category == 2:
                 comment_url += 'news_shehui7_bbs/'
-            elif article['category'] == 3:
+            elif category == 3:
                 comment_url += 'news3_bbs/'
-            elif article['category'] == 4:
+            elif category == 4:
                 comment_url += 'news3_bbs/'
-            elif article['category'] == 5:
+            elif category == 5:
                 comment_url += 'news_junshi_bbs/'
-            elif article['category'] == 6:
+            elif category == 6:
                 comment_url += 'photoview_bbs/'
             comment_url += aid + '_1.html'
-            print comment_url
-
-            #req = scrapy.Request(comment_url, callback = self.parse_comment, dont_filter = self.dont_filter)
-            
-            #yield req
+            #print comment_url
+            req = scrapy.Request(comment_url, callback = self.parse_comment, dont_filter = self.dont_filter)
+            req.meta['aid'] = aid
+            yield req
         except Exception, e:
             print 'Parse_news ERROR!!!!!!!!!!!!!  URL :'+ article['url']
             print traceback.print_exc(file = sys.stdout)
     
     def parse_comment(self, response):
-        html_gbk = response.xpath('//text()').extract()
-        print html_gbk
-        html_utf = html_gbk[0].decode("gbk").encode("utf-8")
-        js = self.GetMiddleStr(html_utf,'var newPostList=',';')
-        print js
-        '''# gbk-->utf8
-        html_utf = .decode("gbk").encode("utf-8")
+        #res = urllib2.urlopen(response.url)
+        res = urllib2.urlopen(r'http://comment.news.163.com/cache/newlist/news_guonei8_bbs/B18LQ7NT0001124J_1.html')
+        #comment json url is encoded by utf-8
+        html_utf = res.read()
+        
+        check_null = self.GetMiddleStr(html_utf,'var newPostList={"newPosts":',',"')
+        if check_null.decode('utf-8') == 'null' : return
+        
+        #transfer to std json format
+        js = self.GetMiddleStr(html_utf,'var newPostList={"newPosts":','}],')
+        js_0 = js.replace('"d":0,','')
+        js_1 = js_0.replace('"1":{','')
+        js_2 = js_1.replace('}},','},')
+        news_json = js_2 + ']'
 
-        # transfer to std json format
-        js = self.GetMiddleStr(html_utf,'var newPostList=',';')
-        #js_0 = js.replace('[','')
-        #js_1 = js_0.replace(']','')
-        #js_2 = js_1.replace('"news":','')
-        #news_json ='[' + js_2 + ']'
+        hjson = json.loads(news_json, encoding ="utf-8")
+        print 'comment size is :' + str(len(hjson))
+        
+        for items in hjson:
+            try:
+                comment = NeteaseCommentItem()
+                comment['date'] = items['t']
+                comment['aid'] = response.meta['aid']
+                comment['username'] = items['n']
+                comment['contents'] = items['b']
+                comment['like_count'] = items['v']
+                yield comment
+            except Exception, e:
+                print 'Parse_comment ERROR!!!!!!!!!!!!!  :'
+                print items
+                print traceback.print_exc(file = sys.stdout)
+        
+        page = response.url[response.url.rfind('_')+1:response.url.rfind('.html')]
+        #print page
+        next_comment_url = response.url[:response.url.rfind('_')+1]
+        next_comment_url +=str(int(page)+1) + '.html'
+        print next_comment_url
+        yield scrapy.Request(next_comment_url, callback = self.parse_comment)
 
-        # 'c':category  't':news title  'l':url  'p':time'''
-        hjson = json.loads(js, encoding ="utf-8")
-        #print hjson
-        print response
+        

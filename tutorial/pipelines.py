@@ -2,7 +2,7 @@
 
 import re
 import MySQLdb
-from tutorial.items import NaverArticleItem, NaverCommentItem,MbcArticleItem,NeteaseArticleItem
+from tutorial.items import NaverArticleItem, NaverCommentItem,MbcArticleItem,NeteaseArticleItem,NeteaseCommentItem
 from tutorial.spiders.mbc_spider import MbcSpider
 from tutorial.spiders.netease_spider import NeteaseSpider
 # Define your item pipelines here
@@ -55,6 +55,8 @@ class MySQLPipeline(object):
             table_name = 'articles'
         elif isinstance(item, NeteaseArticleItem):
             table_name = 'articles_163'
+        elif isinstance(item, NeteaseCommentItem):
+            table_name = 'comments_163'
         elif isinstance(item, NaverCommentItem):
             # cleansing
             # ㅋㅋㅋㅋㅋㅋ/ㅎㅎㅎㅎㅎㅎ => ㅋ/ㅎ
@@ -63,7 +65,7 @@ class MySQLPipeline(object):
             table_name = 'comments'
         elif isinstance(item, MbcArticleItem):
             table_name = 'articles'
-        sql = u'insert into ' + table_name + ' ('
+        sql = u'replace into ' + table_name + ' ('
         for key in item.keys():
             sql += key
             sql += ','
