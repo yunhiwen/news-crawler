@@ -10,8 +10,8 @@ import scrapy
 from tutorial.items import MbcArticleItem
 import MySQLdb
 
-class MbcSpider(scrapy.Spider):
-    name = 'Mbc'
+class KbsSpider(scrapy.Spider):
+    name = 'Kbs'
     allowed_domains = ['imbc.com']
     start_urls = []
 
@@ -31,10 +31,10 @@ class MbcSpider(scrapy.Spider):
     Get the query url
     '''
     def get_query_url(self, search_date):
-        #qs = {'query': keyword}
+        
 
-        return 'http://imnews.imbc.com/player/list_frame.aspx?ntype=vod&category=desk' \
-                + '&day=' + search_date.replace("-","")
+        return 'http://news.kbs.co.kr/vod/program.do?bcd=0001#' \
+                +  search_date.replace("-",".")
 
     '''
     Starting point.
@@ -45,7 +45,12 @@ class MbcSpider(scrapy.Spider):
     def parse(self, response):
 
         try:
-        
+            print response.url
+            print response.headers
+            print response.meta
+            
+            print response.xpath('//div[@class="category_headline"]').extract()
+            
             news_list = response.xpath('//div[@class="list"]/ul/li')
             
             for news_article in news_list:
@@ -68,7 +73,7 @@ class MbcSpider(scrapy.Spider):
                 req.meta['article'] = article
                 yield req
         except Exception, e:
-            print 'ERROR!!!!!!!!!!!!!  URL :'+ news_url[0]
+            print 'ERROR!!!!!!!!!!!!!  URL :'
             print traceback.print_exc(file = sys.stdout)
 
         

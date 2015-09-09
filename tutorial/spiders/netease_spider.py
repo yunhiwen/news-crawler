@@ -36,7 +36,14 @@ class NeteaseSpider(scrapy.Spider):
 
         #return 'http://imnews.imbc.com/player/list_frame.aspx?ntype=vod&category=desk' \
         #        + '&day=' + search_date.replace("-","")
-        return 'http://news.163.com/special/0001220O/news_json.js'
+        article_year=search_date[0:4]
+        article_month=search_date[5:7]
+        article_day=search_date[8:]
+        article_json_url='http://snapshot.news.163.com/wgethtml/http+!!news.163.com!special!0001220O!news_json.js/'+article_year+'-'+article_month+'/'+article_day+'/0.js'
+        
+        #print article_json_url
+        return article_json_url
+        #return 'http://news.163.com/special/0001220O/news_json.js'
 
     '''
     Starting point.
@@ -56,7 +63,9 @@ class NeteaseSpider(scrapy.Spider):
 
         try:
             #Get news.163.com's json data
-            response = urllib2.urlopen(r'http://news.163.com/special/0001220O/news_json.js')
+            #response = urllib2.urlopen(r'http://news.163.com/special/0001220O/news_json.js')
+            response=urllib2.urlopen(r'http://snapshot.news.163.com/wgethtml/http+!!news.163.com!special!0001220O!news_json.js/2015-08/20/0.js')
+
             html_gbk = response.read()
 
             # gbk-->utf8
@@ -123,7 +132,14 @@ class NeteaseSpider(scrapy.Spider):
             yield response.meta['article']
             
             #star comment parsing
-            category = article['category']
+            comment_url = response.xpath('//*[@id="epContentLeft"]/div[1]/div[2]/div[2]/a[2]/@href').extract()
+            print comment_url
+            comment_json_url = comment_url[0:28]+'cache/newlist/'+comment_url[28:]
+            pos=comment_json_url.find(".html")
+            if pos != -1:
+                comment_json_url=comment_json_url[:pos]+"_1"+comment_json_url[pos:]
+            
+            '''category = article['category']
             comment_url = 'http://comment.news.163.com/cache/newlist/'
             if category == 0:
                 comment_url += 'news_guonei8_bbs/'
@@ -141,7 +157,9 @@ class NeteaseSpider(scrapy.Spider):
                 comment_url += 'photoview_bbs/'
             comment_url += aid + '_1.html'
             #print comment_url
-            req = scrapy.Request(comment_url, callback = self.parse_comment, dont_filter = self.dont_filter)
+            #req = scrapy.Request(comment_url, callback = self.parse_comment, dont_filter = self.dont_filter)'''
+            print '!!!!!!!!!!!!!!!!!!!!!coment_url is :' + comment_json_url
+            req = scrapy.Request(comment_json_url, callback = self.parse_comment, dont_filter = self.dont_filter)
             req.meta['aid'] = aid
             yield req
         except Exception, e:
