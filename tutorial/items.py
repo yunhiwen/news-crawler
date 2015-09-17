@@ -50,6 +50,7 @@ class NaverArticleItem(scrapy.Item):
     contents = scrapy.Field()
     url = scrapy.Field()
     referer = scrapy.Field()
+    position = scrapy.Field()
 
 class NaverCommentItem(scrapy.Item):
     date = scrapy.Field()

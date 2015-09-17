@@ -5,6 +5,8 @@ import re
 import time
 import json
 import urllib
+import time
+from datetime import datetime, timedelta
 from urlparse import urlparse, parse_qs
 import scrapy
 from tutorial.items import NaverArticleItem, NaverCommentItem
@@ -17,6 +19,7 @@ class NaverQuickSpider(scrapy.Spider):
 
     s_date = ''
     e_date = ''
+    c_date = ''
     page_cnt = 1
     dont_filter = False
     agency_list = []
@@ -27,6 +30,10 @@ class NaverQuickSpider(scrapy.Spider):
         self.s_date = start_date
         self.e_date = end_date
         self.c_date = check_date
+        if check_date == '':
+            yesterday = datetime.now() + timedelta(days = -1)
+            self.c_date = yesterday.strftime("%Y%m%d")
+            print self.c_date
         self.start_urls = [self.get_query_url(self.c_date, self.page_cnt)]
         super(NaverQuickSpider, self).__init__(*args, **kwargs)
 
@@ -36,7 +43,7 @@ class NaverQuickSpider(scrapy.Spider):
     def get_query_url(self, check_date, page):
         #qs = {'query': keyword}
 
-        return 'http://news.naver.com/main/list.nhn?sid1=001&mid=sec&mode=LSD&listType=title' \
+        return 'http://news.naver.com/main/list.nhn?sid1=001&mid=sec&mode=LSD&listType=paper' \
                 + '&date=' + check_date \
                 + '&page=' + str(page) \
                 
@@ -51,6 +58,7 @@ class NaverQuickSpider(scrapy.Spider):
     def parse(self, response):
         # next page end condition
         next_button = response.xpath('//td[@class="content"]//div[@class="paging"]/a[@class="next"]')
+        #if self.page_cnt >10:
         if len(next_button) == 0 and self.page_cnt >= int(response.xpath('//td[@class="content"]//div[@class="paging"]/a/text()').extract()[-1]):
             print "!!!!!!!!!!!!!get max page" + str(self.page_cnt)
             return
@@ -64,19 +72,21 @@ class NaverQuickSpider(scrapy.Spider):
             try:
                 
                 # news agency
-                agency = news_article.xpath('./span[@class="writing"]/text()').extract()[0]
-                #if agency not in ['경향신문','중앙일보','한겨레','동아일보','조선일보']:
-                #    print agency
-                #    continue
-
+                agency = news_article.xpath('.//span[@class="writing"]/text()').extract()[0]
+                
+                if agency not in [u'경향신문',u'중앙일보',u'한겨레',u'동아일보',u'조선일보']:
+                    continue
                 # naver news link
-                news_url = news_article.xpath('./a/@href').extract()[0]
+                news_url = news_article.xpath('.//a/@href').extract()[0]
                 
                 #naver news title
-                news_title = news_article.xpath('./a/text()').extract()[0]
+                news_title = news_article.xpath('.//a/text()').extract()[0]
                 
                 #naver news date
-                news_date = news_article.xpath('./span[@class="date"]/text()').extract()[0]
+                news_date = news_article.xpath('.//span[@class="date"]/text()').extract()[0]
+                
+                #naver news paper
+                news_position = news_article.xpath('.//span[@class="paper"]/text()').extract()[0]
                 
                 # parse news link to get aid and oid
                 parsed_news_url = urlparse(news_url)
@@ -85,13 +95,15 @@ class NaverQuickSpider(scrapy.Spider):
                 query_string = parse_qs(parsed_news_url[4])
                 
                 # populate article item
-                
+                #if query_string['oid'][0] != '32':
+                #    continue                
                 article = NaverArticleItem()
                 article['aid'] = query_string['aid'][0]
                 article['oid'] = query_string['oid'][0]
                 article['agency'] = agency
                 article['date'] = news_date
                 article['title'] = news_title
+                article['position'] = news_position
                 
                 req = scrapy.Request(news_url, callback = self.parse_news, dont_filter = self.dont_filter)
 
